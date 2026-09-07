@@ -96,5 +96,5 @@ if __name__ == "__main__":
         "lock": b.acquire_lock(),
         "diary_bytes": b.diary.stat().st_size if b.diary.exists() else 0,
         "capsule": b.capsule_present(),
-        "layers": ["hot(2KB)", "working_state", "diary(append-only)", "cold(EVO)", "index(FTS5)"],
+        "layers": ["hot(2KB)", "working_state", "diary(append-only)", "cold(external)", "index(FTS5)"],
     }, indent=1))
