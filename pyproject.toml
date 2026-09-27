@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "journal-brain"
+version = "0.1.0"
+description = "Memory architecture for a persistent agent — with the two laws that keep it honest."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [{name = "Sophia Marie DeClue"}]
+
+[project.urls]
+Homepage = "https://github.com/Sophia-Thickums/journal-brain"
+
+[tool.setuptools]
+py-modules = ["journal_brain"]

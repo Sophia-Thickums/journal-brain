@@ -67,8 +67,14 @@ class JournalBrain:
             return False
 
     def append_diary(self, entry):
-        """The ONLY way to write the diary. Append + verify growth. Never overwrite."""
-        before = self.diary.stat().st_size
+        """The ONLY way to write the diary. Append + verify growth. Never overwrite.
+
+        FIXED 2026-09-26: this assumed the diary already existed and crashed on a fresh
+        root (stat -> FileNotFoundError). An append-only writer that cannot create its own
+        file is a writer that only works on machines where someone else went first.
+        """
+        self.diary.parent.mkdir(parents=True, exist_ok=True)
+        before = self.diary.stat().st_size if self.diary.exists() else 0
         with open(self.diary, "a") as f:
             f.write(entry if entry.endswith("\n") else entry + "\n")
         after = self.diary.stat().st_size
@@ -88,8 +94,54 @@ class JournalBrain:
     def capsule_present(self):
         return self.capsule.exists()
 
+def selftest() -> int:
+    """Prove the two laws this file exists for: append-only diary, and verifiable growth.
+
+    A memory architecture whose selftest cannot demonstrate that it REFUSES to overwrite
+    is a diagram, not an implementation.
+    """
+    import sys as _s, tempfile, pathlib
+    print("journal_brain --selftest")
+    print("=" * 60)
+    ok = True
+    root = pathlib.Path(tempfile.mkdtemp(prefix="jb-selftest-"))
+    (root / "MEMORY").mkdir(parents=True, exist_ok=True)
+    brain = JournalBrain(root)
+
+    # 1. append adds bytes
+    before = brain.diary.stat().st_size if brain.diary.exists() else 0
+    brain.append_diary("first durable fact\n")
+    after1 = brain.diary.stat().st_size if brain.diary.exists() else 0
+    grew = after1 > before
+    ok &= grew
+    print(f"  {'PASS' if grew else 'FAIL'}  append grew the diary {before} -> {after1} bytes")
+
+    # 2. the second append MUST NOT shrink or replace the first -- append-only means monotonic
+    brain.append_diary("second durable fact\n")
+    after2 = brain.diary.stat().st_size if brain.diary.exists() else 0
+    monotonic = after2 > after1
+    ok &= monotonic
+    print(f"  {'PASS' if monotonic else 'FAIL'}  second append monotonic {after1} -> {after2}")
+
+    # 3. the earlier content MUST still be present -- the law the 70KB loss produced
+    text = brain.diary.read_text()
+    kept = "first durable fact" in text and "second durable fact" in text
+    ok &= kept
+    print(f"  {'PASS' if kept else 'FAIL'}  both entries still present (nothing overwritten)")
+
+    # 4. lock is acquirable
+    lock_ok = bool(brain.acquire_lock())
+    ok &= lock_ok
+    print(f"  {'PASS' if lock_ok else 'FAIL'}  acquires the session lock")
+
+    print("=" * 60)
+    print("selftest " + ("PASSED" if ok else "FAILED"))
+    return 0 if ok else 1
+
 if __name__ == "__main__":
     import sys
+    if "--selftest" in sys.argv:
+        sys.exit(selftest())
     root = sys.argv[1] if len(sys.argv) > 1 else "."
     b = JournalBrain(root)
     print(json.dumps({
@@ -98,3 +150,4 @@ if __name__ == "__main__":
         "capsule": b.capsule_present(),
         "layers": ["hot(2KB)", "working_state", "diary(append-only)", "cold(external)", "index(FTS5)"],
     }, indent=1))
+
